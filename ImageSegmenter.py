@@ -31,26 +31,22 @@ class ImageSegmenter:
         Returns:
             None
         """
+        #plt.figure(figsize=(20,20))
+        #plt.imshow(image)
+        #ax = plt.gca()
+        #ax.set_autoscale_on(False)
         if len(anns) == 0:
             return
         sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)
-        mask_all = []
+        img = np.ones((anns[0]['segmentations'].shape[0], anns[0]['segmentations'].shape[1], 4))
+        img[:,:,3] = 0
         for ann in sorted_anns:
             m = ann['segmentation']
-            img = np.ones((m.shape[0], m.shape[1], 3))
-            color_mask = np.random.random((1, 3)).tolist()[0]
-            for i in range(3):
-                img[:, :, i] = color_mask[i]
+            mask = np.concatenate([np.random.random(3),[0.35]])
+            img[m] = mask
 
-            m = [m for x in range(3)]
-            m = np.swapaxes(m, 0, 2)
-            m = np.swapaxes(m, 0, 1)
-            img = img * m
-            mask_all.append(img)
-
-        mask_all = np.array(mask_all).sum(axis=0)
-        mask_all *= 255
-        save_img = image / 2 + mask_all
+        #ax.imshow(mask)
+        save_image = mask + image
         save_img = Image.fromarray(save_img.astype(np.uint8))
         save_img.save(f"output/{location}_{points_per_side}.png")
 
@@ -86,12 +82,17 @@ class ImageSegmenter:
 
 
 
-    def filter_segments(self,anns, max_area, min_area, ratio):
+    def filter_segments(self,anns, max_area, min_area):
 
         """
+        Filters too big or too small masks
+        Args:
+            anns: annotations.
+            max_area: maximum mask area in pxls^2
+            min_area: minimum mask area in pxls^2
 
-
-
+        Returns:
+            filtered masks annotations.
         """
         for ann in anns:
             w,h = ann['bbox'][2], ann['bbox'][3]
@@ -100,8 +101,11 @@ class ImageSegmenter:
         return filtered
 
     def classify_lands():
+        '''
+        To write this later based on pytorch and alexnet clasiification
 
-    def save_masks_coco(anns):
+
+        '''
         from torchvision.io import read_image
         from torchvision.models import resnet50, ResNet50_Weights
 
@@ -124,3 +128,63 @@ class ImageSegmenter:
         score = prediction[class_id].item()
         category_name = weights.meta["categories"][class_id]
         print(f"{category_name}: {100 * score:.1f}%")
+        pass
+
+
+
+    def make_coco_format(image_path,anns, data_all, image_id):
+        '''
+            saving annotations into coco format file.
+
+            images:
+                "file_name" , "height", "width", "meta_data", "id"
+            annotations
+                "bbox", "image_id", "category_id", "segmentation", "area", "iscrowd"
+            categories
+                "id", "supercategory", "name", "isthing"
+
+
+        Args:
+            image_path: path to the image
+
+            anns: annottaions in format
+                    "segmentation" : the mask
+                    "area" : the area of the mask in pixels
+                    "bbox" : the boundary box of the mask in XYWH format
+                    "predicted_iou" : the model's own prediction for the quality of the mask
+                    "point_coords" : the sampled input point that generated this mask
+                    "stability_score" : an additional measure of mask quality
+                    "crop_box" : the crop of the image used to generate this mask in XYWH format
+            data_all:
+                json dictionary including "images", "annotations", "categories"
+        Return:
+            coco format json dictionary
+
+
+        '''
+        from torchvision.ops import masks_to_boxes
+
+
+        img = {}
+        annotations = []
+        image = cv.imread(image_path)
+        imgs["file_name"] = image_path.split('/')[-1]
+        imgs["width"]  = image.shape[0]
+        imgs["height"] = image.shape[1]
+        imgs["meta_data"] = {}
+        for ann in anns:
+            curanns ={}
+            boxes = masks_to_boxes(masks)
+            curanns['bbox'] = [boxes[0], boxes[1], boxes[2] - boxes[0], boxes[3] - boxes[1]]
+            curanns['area'] = anns['area']
+            curanns['segmentations'] = anns['segmentation']
+            curanns['image_id'] = image_id
+            curanns['iscrowd'] = 0
+
+            annotations.append(curanns)
+
+
+        data_all['annotations'].append(annotations)
+        data_all['images'].append(img)
+
+        return data_all
