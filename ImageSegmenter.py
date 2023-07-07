@@ -7,6 +7,11 @@ import requests
 import json
 
 
+# segment anything
+from segment_anything import build_sam, SamPredictor, SamAutomaticMaskGenerator,sam_model_registry
+
+
+
 
 class ImageSegmenter:
     def __init__(self):
@@ -18,6 +23,14 @@ class ImageSegmenter:
         self.model_type = "vit_h"
         self.sam = sam_model_registry[self.model_type](checkpoint=self.sam_checkpoint).to(device=self.device)
 
+    def Poly_Anything(image,  points_per_side=16):
+
+        generic_mask_generator = SamAutomaticMaskGenerator(self.sam, points_per_side=points_per_side)
+        segmented_frame_masks = generic_mask_generator.generate(image)
+
+        return segmented_frame_masks
+    
+    
     def save_anno(self, image, anns, points_per_side, location):
         """
         Saves the annotated image with overlaid masks.
